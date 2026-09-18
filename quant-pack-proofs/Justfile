@@ -1,0 +1,23 @@
+# quant-pack-proofs: prove the integer packing law in Bend, test the Rust
+# implementation (integer packing + float dequant), then both.
+#
+# `bend` must be on PATH (curl -fsSL https://bend-lang.com/install.sh | sh).
+# `cargo`/`rustc` must be on PATH.
+
+default: check
+
+# Check bend/pack_unpack/PROOF.bend — must print "All terms check."
+prove:
+    bend bend/pack_unpack/PROOF.bend
+
+# Run the Bend demo (a concrete 4-pair packed/unpacked example).
+demo:
+    bend bend/pack_unpack/main.bend
+
+# Run the Rust crate's tests (unit tests + proptest round-trip properties).
+test:
+    cd rust && cargo test
+
+# Both: the Bend proof, then the Rust tests. This is the end-to-end gate.
+check: prove test
+    @echo "quant-pack-proofs: Bend proof checks and cargo test passes."
