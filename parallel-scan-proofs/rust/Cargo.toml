@@ -1,0 +1,11 @@
+[package]
+name = "parallel-scan-proofs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "parallel_scan_proofs"
+path = "src/lib.rs"
+
+[dev-dependencies]
+proptest = "1"

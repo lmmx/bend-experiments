@@ -19,16 +19,21 @@ def add_assoc(a: Nat, -b: Nat, -c: Nat) -> {Nat.add(a, Nat.add(b, c)) == Nat.add
       {==}
 
 # add_const is "add a constant to every leaf" -- applying it twice in a
-# row (a, then b) is the same as applying it once with b+a.
+# row (a, then b) is the same as applying it once with b+a. Stated
+# simple-form == complex-form (not the other way around) because a
+# rewrite step consumes a hypothesis's RIGHT-hand side wherever it occurs
+# and replaces it with the LEFT-hand side (../../bend-primer/docs/laws-and-proofs.md);
+# scan_shift below needs to collapse the complex (twice-applied) form down
+# to the simple one, so that has to be the RHS here.
 def add_const_compose(t: S.Tree, +a: Nat, +b: Nat)
-  -> {S.add_const(S.add_const(t, a), b) == S.add_const(t, Nat.add(b, a)) : S.Tree}:
+  -> {S.add_const(t, Nat.add(b, a)) == S.add_const(S.add_const(t, a), b) : S.Tree}:
   match t:
     case S.Leaf{x}:
-      %add_assoc(b, a, x) : {S.Leaf{Nat.add(b, Nat.add(a, x))} == S.Leaf{_} : S.Tree}
+      %add_assoc(b, a, x) : {S.Leaf{_} == S.Leaf{Nat.add(b, Nat.add(a, x))} : S.Tree}
       {==}
     case S.Node{l, r}:
-      %add_const_compose(l, a, b) : {S.Node{_, S.add_const(S.add_const(r, a), b)} == S.Node{S.add_const(l, Nat.add(b, a)), S.add_const(r, Nat.add(b, a))} : S.Tree}
-      %add_const_compose(r, a, b) : {S.Node{S.add_const(l, Nat.add(b, a)), _} == S.Node{S.add_const(l, Nat.add(b, a)), S.add_const(r, Nat.add(b, a))} : S.Tree}
+      %add_const_compose(l, a, b) : {S.Node{S.add_const(l, Nat.add(b, a)), S.add_const(r, Nat.add(b, a))} == S.Node{_, S.add_const(S.add_const(r, a), b)} : S.Tree}
+      %add_const_compose(r, a, b) : {S.Node{S.add_const(l, Nat.add(b, a)), S.add_const(r, Nat.add(b, a))} == S.Node{S.add_const(l, Nat.add(b, a)), _} : S.Tree}
       {==}
 
 # scan_shift: scanning with carry k directly is the same as scanning with
@@ -43,7 +48,7 @@ def scan_shift(t: S.Tree, +k: Nat)
       {==}
     case S.Node{+l, r}:
       %scan_shift(l, k) : {S.Node{S.parallel_scan(l, k), S.add_const(S.parallel_scan(r, 0n), Nat.add(k, S.total(l)))} == S.Node{_, S.add_const(S.add_const(S.parallel_scan(r, 0n), S.total(l)), k)} : S.Tree}
-      %add_const_compose(S.parallel_scan(r, 0n), S.total(l), k) : {S.Node{S.parallel_scan(l, k), _} == S.Node{S.parallel_scan(l, k), S.add_const(S.add_const(S.parallel_scan(r, 0n), S.total(l)), k)} : S.Tree}
+      %add_const_compose(S.parallel_scan(r, 0n), S.total(l), k) : {S.Node{S.parallel_scan(l, k), S.add_const(S.parallel_scan(r, 0n), Nat.add(k, S.total(l)))} == S.Node{S.parallel_scan(l, k), _} : S.Tree}
       {==}
 
 def Laws.parallel_scan_matches_sequential(t, c):
@@ -51,7 +56,7 @@ def Laws.parallel_scan_matches_sequential(t, c):
     case S.Leaf{x}:
       {==}
     case S.Node{+l, r}:
-      %Laws.parallel_scan_matches_sequential(l, c) : {S.Node{_, S.add_const(S.parallel_scan(r, 0n), Nat.add(c, S.total(l)))} == S.Node{S.sequential_scan(l, c), S.sequential_scan(r, Nat.add(c, S.total(l)))} : S.Tree}
+      %Laws.parallel_scan_matches_sequential(l, c) : {S.Node{S.parallel_scan(l, c), S.add_const(S.parallel_scan(r, 0n), Nat.add(c, S.total(l)))} == S.Node{_, S.sequential_scan(r, Nat.add(c, S.total(l)))} : S.Tree}
       %scan_shift(r, Nat.add(c, S.total(l))) : {S.Node{S.parallel_scan(l, c), _} == S.Node{S.parallel_scan(l, c), S.sequential_scan(r, Nat.add(c, S.total(l)))} : S.Tree}
       %Laws.parallel_scan_matches_sequential(r, Nat.add(c, S.total(l))) : {S.Node{S.parallel_scan(l, c), S.parallel_scan(r, Nat.add(c, S.total(l)))} == S.Node{S.parallel_scan(l, c), _} : S.Tree}
       {==}
