@@ -1,3 +1,18 @@
+# checker_soundness: DEMOTED. This project's headline theorem is now
+# ../constraint_gen/ (see its LAWS.bend/PROOF.bend and
+# ../../docs/bend-proof.md) -- a compiler-correctness-shaped claim about
+# the FUNCTION that turns a whole scheduling Spec into a Constraint list,
+# proven for every spec and every assignment, not a fact about one CSP
+# instance's checker. This file is kept, not deleted, because it's still
+# a real (if narrower and less interesting) proof, and because
+# all_different_check/AllDifferent's shape is exactly what
+# ../constraint_gen/main.bend's all_diff_at/not_conflicting generalize
+# (index+assignment lookups instead of raw list values) -- but it is NOT
+# the project's demonstration of Bend doing real work any more. The
+# original framing below is left as written, for the record.
+#
+# --- original file, below ---
+#
 # checker_soundness: the law. The human states it; PROOF.bend must prove
 # it.
 #

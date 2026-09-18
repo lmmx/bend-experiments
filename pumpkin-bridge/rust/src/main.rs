@@ -4,9 +4,8 @@
 //
 // The API used here (Solver::default, solver.new_bounded_integer,
 // solver.add_constraint(constraints::...).post(), constraints::all_different,
-// constraints::equals, constraints::less_than_or_equals with
-// TransformableVariable::scaled, termination::Indefinite,
-// solver.default_brancher_over_all_propositional_variables(),
+// constraints::less_than_or_equals with TransformableVariable::scaled,
+// termination::Indefinite, solver.default_brancher_over_all_propositional_variables(),
 // solver.satisfy(...) -> SatisfactionResult) is copied from, and verified
 // against, the working examples in /home/user/lmmx/hello-pumpkin,
 // especially 01_simple_linear and 06_solve_global_all_different. It is not
@@ -18,14 +17,18 @@
 //   2. precedence     -- Design happens strictly before Build
 //   3. a linear bound -- Test's slot plus Deploy's slot is at most 6
 //
-// This is a genuinely scheduling-flavored CSP: an all_different constraint
-// over bounded integers (as in hello-pumpkin's 06 example) plus a
-// precedence constraint and a sum constraint, neither of which appears in
-// any single hello-pumpkin example.
+// Constraints 1 and 2 are exactly what ../bend/constraint_gen/main.bend's
+// `Spec` models (n_tasks + precedence pairs) and `gen_constraints` compiles
+// to a Constraint list; `gen_constraints`/`constraints_satisfied` below are
+// the Rust-side twins of those two Bend functions, structured to visibly
+// mirror them (see each function's doc comment for the exact correspondence).
+// Constraint 3 (the sum bound) is NOT part of that modeled Spec -- it's
+// posted and checked as a separate, direct extra, so it's clear the Bend
+// proof isn't being asked to cover more than it actually does.
 
 use pumpkin_solver::results::{ProblemSolution, SatisfactionResult};
 use pumpkin_solver::termination::Indefinite;
-use pumpkin_solver::variables::TransformableVariable;
+use pumpkin_solver::variables::{DomainId, TransformableVariable};
 use pumpkin_solver::{constraints, Solver};
 
 /// Task indices into the 4-element solution array this program builds.
@@ -34,6 +37,7 @@ const BUILD: usize = 1;
 const TEST: usize = 2;
 const DEPLOY: usize = 3;
 const TASK_NAMES: [&str; 4] = ["Design", "Build", "Test", "Deploy"];
+const N_TASKS: usize = 4;
 
 /// Time slots are 0..=4 (5 slots for 4 tasks, so all_different is a real
 /// constraint -- not forced into a permutation by domain size alone).
@@ -42,38 +46,109 @@ const NUM_SLOTS: i32 = 5;
 /// Test's slot plus Deploy's slot must not exceed this bound.
 const SUM_BOUND: i32 = 6;
 
+/// The IR ../bend/constraint_gen/main.bend's `gen_constraints` compiles a
+/// Spec down to -- see that file's `Constraint` type. `AllDiff` carries
+/// the task indices it ranges over; `Prec(a, b)` means task `a` strictly
+/// before task `b`.
+#[derive(Debug, Clone)]
+enum Constraint {
+    AllDiff(Vec<usize>),
+    Prec(usize, usize),
+}
+
+/// Mirrors ../bend/constraint_gen/main.bend's `gen_constraints` exactly:
+/// one `AllDiff` constraint over ALL task indices `[0, n_tasks)` -- the
+/// same enumeration Bend's `List.range(n_tasks)` performs, i.e.
+/// `(0..n_tasks).collect()`, not a hand-picked subset -- plus one `Prec`
+/// constraint per precedence pair, in order. See
+/// ../bend/constraint_gen/buggy_first_attempt.bend for the natural,
+/// wrong alternative this deliberately avoids: scoping the `AllDiff` to
+/// only the tasks that happen to appear in a precedence pair.
+fn gen_constraints(n_tasks: usize, precedences: &[(usize, usize)]) -> Vec<Constraint> {
+    let mut cs = vec![Constraint::AllDiff((0..n_tasks).collect())];
+    for &(a, b) in precedences {
+        cs.push(Constraint::Prec(a, b));
+    }
+    cs
+}
+
+/// Mirrors ../bend/constraint_gen/main.bend's `constraints_satisfied`:
+/// walks a `Constraint` list, checking each against a candidate
+/// assignment by direct arithmetic, never by calling back into Pumpkin.
+/// `AllDiff` is the same `O(n^2)` pairwise-comparison shape as
+/// ../bend/checker_soundness's `all_different_check` (and
+/// ../bend/constraint_gen/main.bend's `all_diff_at`, which this Rust
+/// function is the direct analogue of).
+fn constraints_satisfied(constraints: &[Constraint], assignment: &[i32]) -> bool {
+    constraints.iter().all(|c| match c {
+        Constraint::AllDiff(idxs) => {
+            for i in 0..idxs.len() {
+                for j in (i + 1)..idxs.len() {
+                    if assignment[idxs[i]] == assignment[idxs[j]] {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+        Constraint::Prec(a, b) => assignment[*a] < assignment[*b],
+    })
+}
+
+/// Posts every `Constraint` from `gen_constraints` to the real Pumpkin
+/// solver -- the "code generator" actually emitting real solver calls,
+/// not just an abstract IR. `AllDiff` posts `constraints::all_different`
+/// over the named task variables (as in hello-pumpkin's
+/// `06_solve_global_all_different`); `Prec(a, b)` posts `a - b <= -1` via
+/// `constraints::less_than_or_equals` with `TransformableVariable::scaled`
+/// (as in hello-pumpkin's `03_linear_multiconstraint`).
+fn post_constraints(solver: &mut Solver, vars: &[DomainId; N_TASKS], constraints: &[Constraint]) {
+    for c in constraints {
+        match c {
+            Constraint::AllDiff(idxs) => {
+                let scope: Vec<DomainId> = idxs.iter().map(|&i| vars[i]).collect();
+                _ = solver.add_constraint(constraints::all_different(scope)).post();
+            }
+            Constraint::Prec(a, b) => {
+                _ = solver
+                    .add_constraint(constraints::less_than_or_equals(
+                        vec![vars[*a].scaled(1), vars[*b].scaled(-1)],
+                        -1,
+                    ))
+                    .post();
+            }
+        }
+    }
+}
+
 /// An independent, from-scratch verifier of a claimed solution. This does
 /// NOT call back into Pumpkin or re-run the solver in any way -- it just
-/// re-derives, by direct arithmetic, whether the four constraints actually
+/// re-derives, by direct arithmetic, whether the constraints actually
 /// hold. This is the same idea (in miniature) as `fzn-drcp-check`: a
 /// separate, simple checker that re-validates a solver's output instead of
 /// trusting the solver that produced it. See ../docs/drcp-and-proofs.md.
 ///
-/// The all_different check below is the exact pairwise-comparison shape
-/// that `all_different_check` in ../bend/checker_soundness/LAWS.bend
-/// formalizes and proves sound: "if this direct check says all-different,
-/// the property really holds."
-fn check_solution(slots: &[i32; 4]) -> bool {
+/// The all_different + precedence half is checked by running the SAME
+/// `gen_constraints` + `constraints_satisfied` pair `main` used to build
+/// and post the constraints in the first place -- so this checker and the
+/// constraints Pumpkin actually solved are provably (not just visually)
+/// the same shape. That correspondence is exactly what
+/// ../bend/constraint_gen/LAWS.bend's `gen_constraints_faithful` proves
+/// general-purpose, for every spec and every assignment.
+fn check_solution(slots: &[i32; N_TASKS]) -> bool {
     // 1. domain: every slot is a valid time slot
     if slots.iter().any(|&s| s < 0 || s >= NUM_SLOTS) {
         return false;
     }
 
-    // 2. all_different: brute-force pairwise comparison, O(n^2)
-    for i in 0..slots.len() {
-        for j in (i + 1)..slots.len() {
-            if slots[i] == slots[j] {
-                return false;
-            }
-        }
-    }
-
-    // 3. precedence: Design strictly before Build
-    if !(slots[DESIGN] < slots[BUILD]) {
+    // 2 & 3. all_different + precedence, via the same generator main() posts to Pumpkin.
+    let precedences = [(DESIGN, BUILD)];
+    if !constraints_satisfied(&gen_constraints(N_TASKS, &precedences), slots) {
         return false;
     }
 
-    // 4. linear/sum bound: Test + Deploy <= SUM_BOUND
+    // 4. linear/sum bound: NOT part of gen_constraints' modeled Spec (which
+    // only covers all_different + precedence) -- a direct extra check.
     if slots[TEST] + slots[DEPLOY] > SUM_BOUND {
         return false;
     }
@@ -94,21 +169,14 @@ fn main() {
     let build = solver.new_bounded_integer(0, NUM_SLOTS - 1);
     let test = solver.new_bounded_integer(0, NUM_SLOTS - 1);
     let deploy = solver.new_bounded_integer(0, NUM_SLOTS - 1);
+    let vars: [DomainId; N_TASKS] = [design, build, test, deploy];
 
-    // 1. all_different (a global constraint, as in hello-pumpkin's 06 example)
-    _ = solver
-        .add_constraint(constraints::all_different(vec![design, build, test, deploy]))
-        .post();
+    // 1 & 2: all_different + precedence, generated and posted the same way
+    // check_solution re-derives them above.
+    let precedences = [(DESIGN, BUILD)];
+    post_constraints(&mut solver, &vars, &gen_constraints(N_TASKS, &precedences));
 
-    // 2. precedence: design < build, i.e. design - build <= -1
-    _ = solver
-        .add_constraint(constraints::less_than_or_equals(
-            vec![design.scaled(1), build.scaled(-1)],
-            -1,
-        ))
-        .post();
-
-    // 3. linear bound: test + deploy <= SUM_BOUND
+    // 3. linear bound: test + deploy <= SUM_BOUND (outside the modeled Spec)
     _ = solver
         .add_constraint(constraints::less_than_or_equals(
             vec![test.scaled(1), deploy.scaled(1)],
@@ -203,5 +271,17 @@ mod tests {
     #[test]
     fn rejects_negative_slot() {
         assert!(!check_solution(&[-1, 1, 2, 3]));
+    }
+
+    #[test]
+    fn gen_constraints_matches_the_buggy_first_attempt_counterexample() {
+        // The exact scenario bend/constraint_gen/buggy_first_attempt.bend
+        // gets wrong: 3 tasks, no precedences, two of them share a slot.
+        // The correct gen_constraints (this file's) must reject it even
+        // with an empty precedences list, because the AllDiff constraint
+        // ranges over all n_tasks, not just precedence-mentioned tasks.
+        let constraints = gen_constraints(3, &[]);
+        let bad_assignment = [5, 5, 9];
+        assert!(!constraints_satisfied(&constraints, &bad_assignment));
     }
 }

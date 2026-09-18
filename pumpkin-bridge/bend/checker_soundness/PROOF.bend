@@ -1,3 +1,6 @@
+# checker_soundness: DEMOTED -- see the header of ./LAWS.bend. The
+# headline proof is ../constraint_gen/PROOF.bend.
+#
 # checker_soundness: the proof. `T(b)` reflects a Bool into a Type (Unit
 # when True, Empty when False) and `and_split` decomposes a witness for
 # `a && b` into one for each side -- both copied verbatim from a real,
