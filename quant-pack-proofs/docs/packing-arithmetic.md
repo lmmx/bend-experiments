@@ -100,15 +100,19 @@ hand-rolled bit manipulation, and the round-trip *law* this project proves
 doesn't touch the scale's width at all - see `proof-boundary.md`). That is
 a stated simplification, not a claim about what any upstream format uses.
 
-## Proven scheme: 2 trits per digit
+## The target scheme is now proven too
 
-Proving the 5-trits/byte scheme's round trip in Bend means a case analysis
-over `3^5 = 243` combinations (or an equivalent inductive argument over a
-5-step div/mod chain) - judged too fiddly to get right, and right *cleanly*,
-in the time available for this project. The task this project fulfills
-explicitly sanctions proving a smaller instance of the identical technique
-instead and saying so plainly, which is what this section (and
-`bend/pack_unpack/`) does.
+The 5-trits/byte round trip - `unpack5(pack5(t4,t3,t2,t1,t0)) ==
+B5{t4,t3,t2,t1,t0}`, for every 5-trit group, plus its generalization to a
+list of groups of any length - is proven in `bend/pack_unpack_5trit/`, via
+exactly the `3^5 = 243`-combination case analysis this section originally
+called out of reach, generated mechanically rather than hand-typed (see
+`bend-proof.md`). That derivation also hit a real bug on the way
+(a digit-order mistake in the first draft of `unpack5`) - see
+`bend-proof.md` for the full honest account, including the counterexample
+`bend` rejected before the fix.
+
+## Proven stand-in scheme: 2 trits per digit
 
 **Arity 2:** pack two trits `t1, t0` into one digit via
 

@@ -3,18 +3,25 @@
 This project draws one hard line, stated up front rather than discovered by
 a reader digging through source:
 
-> **Proven** (Bend, `bend/pack_unpack/LAWS.bend` + `PROOF.bend`, checked
-> with `bend`, must print `All terms check.`): the integer trit-code round
-> trip, `unpack(pack(xs)) == xs`, at packing arity 2, for a block of any
-> length.
+> **Proven** (Bend, checked with `bend`, must print `All terms check.`):
+> the integer trit-code round trip, at **both** packing arities now -
+> `bend/pack_unpack/LAWS.bend` + `PROOF.bend` at arity 2
+> (`unpack(pack(xs)) == xs`, for a block of any length), and
+> `bend/pack_unpack_5trit/LAWS.bend` + `PROOF.bend` at arity 5, the real
+> target (`unpack5(pack5(t4,...,t0)) == B5{t4,...,t0}` for a single group,
+> generalized to `unpack5_list(pack5_list(xs)) == xs` for a list of full
+> groups of any length - not just the target's 125-trit-multiple case, see
+> `bend-proof.md`'s scope note on the ragged 128-trit block's final
+> partial group).
 >
 > **Tested, not proven** (Rust, `rust/`, checked with `cargo test`,
 > property-based via `proptest`): the same integer round trip re-implemented
 > independently in Rust (a cross-check that the Bend-proven algorithm and
-> the Rust implementation of it agree, not a second proof), at packing
-> arity 2, over a fixed sample of block sizes (including the target 128);
-> and the `f32` dequantize/quantize step, which has **no Bend counterpart at
-> all**.
+> the Rust implementation of it agree, not a second proof), at **both**
+> arities, over a fixed sample of block sizes (including the target 128,
+> with arity-5's ragged final group handled by Rust-only zero-padding, see
+> `bend-proof.md`); and the `f32` dequantize/quantize step, which has **no
+> Bend counterpart at all**.
 
 ## Why the float step has no Bend counterpart
 

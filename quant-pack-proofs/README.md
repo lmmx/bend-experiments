@@ -58,18 +58,36 @@ appears (not a reproduction of PrismML's or BitNet's actual byte layout):
 
 ## What's in this project
 
+The real target - 5 trits packed losslessly into one byte - is now
+attempted and proven, not just the 2-trit warm-up. **Scope, honestly
+stated:** the arity-5 proof covers one 5-trit group for any five trits
+(`unpack5(pack5(t4,...,t0)) == B5{t4,...,t0}`), generalized to a list of
+*full* 5-trit groups of any length (`unpack5_list(pack5_list(xs)) == xs`)
+- which is exactly a 125-trit block (25 groups), but not the target
+128-trit block's ragged final 3-trit group; that last group is handled in
+Rust only, by zero-padding, tested but not proven (see
+`docs/bend-proof.md`'s scope note). Getting there hit a real bug: the
+first draft of `unpack5` assembled its extracted digits in the wrong
+order (a classic multi-digit-base-conversion mistake), `bend` rejected a
+direct claim that it was correct with a concrete mismatch, and it was
+fixed before the general proof was attempted - see `docs/bend-proof.md`
+for the full derivation, in the style
+`../stencil-boundary-proofs/docs/bend-proof.md` set.
+
 | Path | What it is |
 |---|---|
-| `docs/packing-arithmetic.md` | The base-3 packing arithmetic, derived: 5 trits/byte (the target arity) and 2 trits/digit (the arity actually proven). |
-| `docs/round-trip-law.md` | The Bend law statement, why `Trit` (not a raw `Nat` + inequality) was chosen, and the proof walked through step by step. |
-| `docs/proof-boundary.md` | The line between what `bend` proves (integer codes) and what `cargo test` only tests (integer codes, cross-checked; the `f32` scale, which Bend cannot reason about at all). |
-| `bend/pack_unpack/main.bend` | `Trit`, `Block2`, `pack_pair`/`unpack_pair` (arity 2), `pack`/`unpack` (a block of any length), plus a runnable `demo()`. |
-| `bend/pack_unpack/LAWS.bend` | The two laws: `pack_unpack_pair` (one digit) and `pack_unpack` (a whole block). |
-| `bend/pack_unpack/PROOF.bend` | The proofs. `bend bend/pack_unpack/PROOF.bend` prints `All terms check.` |
-| `rust/src/trit.rs` | The identical packing scheme, independently implemented in Rust. |
+| `docs/packing-arithmetic.md` | The base-3 packing arithmetic, derived: 5 trits/byte (the target arity, now proven) and 2 trits/digit (the arity proven first, kept as a stand-in). |
+| `docs/round-trip-law.md` | The arity-2 Bend law statement, why `Trit` (not a raw `Nat` + inequality) was chosen, and the proof walked through step by step. |
+| `docs/bend-proof.md` | The arity-5 derivation: the real digit-order bug hit in `unpack5`'s first draft, the concrete counterexample `bend` rejected, the fix, and both completed proofs (single group, and the list generalization). |
+| `docs/proof-boundary.md` | The line between what `bend` proves (integer codes, both arities) and what `cargo test` only tests (integer codes, cross-checked; the `f32` scale, which Bend cannot reason about at all). |
+| `bend/pack_unpack/` | `main.bend`/`LAWS.bend`/`PROOF.bend`: the arity-2 stand-in (`Trit`, `Block2`, `pack_pair`/`unpack_pair`, `pack`/`unpack` over a block of any length). Proven first, kept as documented groundwork. |
+| `bend/pack_unpack_5trit/` | `main.bend`/`LAWS.bend`/`PROOF.bend`: the real arity-5 target (`pack5`/`unpack5` for one group, `pack5_list`/`unpack5_list` for a list of groups of any length), plus `buggy_first_attempt.bend` and `buggy_first_attempt_disproved.bend`, the real first draft and the counterexample claim `bend` rejected - see `docs/bend-proof.md`. |
+| `rust/src/trit.rs` | The arity-2 packing scheme, independently implemented in Rust. |
+| `rust/src/trit5.rs` | The arity-5 (real target) packing scheme, independently implemented in Rust. |
 | `rust/src/dequant.rs` | The `f32` scale step - CPU-only, tested, **not** proven (see `docs/proof-boundary.md` for why). |
-| `rust/tests/roundtrip.rs` | `proptest` round-trip properties for both the integer packing and the float dequant/quantize. |
-| `Justfile` | `just prove` (Bend only), `just test` (Rust only), `just check` (both - the end-to-end gate). |
+| `rust/tests/roundtrip.rs` | `proptest` round-trip properties for arity 2 and the float dequant/quantize. |
+| `rust/tests/roundtrip5.rs` | `proptest` round-trip properties for arity 5, including the fixed-instance cross-check against the Bend demo and the target 128-trit block. |
+| `Justfile` | `just prove`/`prove5` (Bend, both arities), `just bug5` (the rejected counterexample, expected to fail), `just test` (Rust), `just check` (both proofs + Rust - the end-to-end gate). |
 
 ## The packing arithmetic, briefly
 
@@ -80,10 +98,12 @@ block then needs `ceil(128/5) = 26` code bytes, i.e. `26*8/128 = 1.625`
 bits/weight for the codes alone; adding a 2-byte scale gives `1.75`
 bits/weight (the same figure PTQ1_0's confirmed framing quotes - an
 arithmetic coincidence from using a 2-byte scale over this block size, not
-a claim that this project's byte layout matches PTQ1_0's). Full derivation,
-including why the Bend proof instead targets arity 2 (`digit = 3*t1 + t0`,
-inverted by one div/mod-by-3 step) as a deliberately simplified but fully
-rigorous stand-in for the same technique: `docs/packing-arithmetic.md`.
+a claim that this project's byte layout matches PTQ1_0's). This arity-5
+scheme is now proven in Bend (`bend/pack_unpack_5trit/`, see
+`docs/bend-proof.md`); the project also keeps the earlier arity-2 stand-in
+(`digit = 3*t1 + t0`, inverted by one div/mod-by-3 step, proven first as
+groundwork exercising the identical technique) - full derivation of both:
+`docs/packing-arithmetic.md`.
 
 ## Where this would plug into a real quantization codebase
 
@@ -108,13 +128,15 @@ layer type and `QuantMethod` impl, `ops.rs`/`ffi.rs` for CPU/CUDA kernels),
 a new `QuantMethodConfig` variant carrying the packed-code tensor and scale
 tensor, and a new `IsqType` entry. **This project does not implement that
 integration** - mistral.rs is read here only to ground where the packing
-law proven in `bend/pack_unpack/` would eventually matter, not touched or
-modified.
+laws proven in `bend/pack_unpack/` and `bend/pack_unpack_5trit/` would
+eventually matter, not touched or modified.
 
 ## Running it
 
 ```sh
-just prove   # bend bend/pack_unpack/PROOF.bend -> "All terms check."
-just test    # cd rust && cargo test
-just check   # both, in order - the end-to-end gate
+just prove   # bend bend/pack_unpack/PROOF.bend -> "All terms check." (arity 2)
+just prove5  # bend bend/pack_unpack_5trit/PROOF.bend -> "All terms check." (arity 5, the real target)
+just bug5    # the rejected counterexample claim against the buggy first draft -- expected to fail, on purpose
+just test    # cd rust && cargo test (both arities + the float dequant step)
+just check   # prove + prove5 + test, in order - the end-to-end gate
 ```

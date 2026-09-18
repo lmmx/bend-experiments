@@ -1,5 +1,11 @@
 # DRCP and proof certificates: what's confirmed, what this project illustrates
 
+*Note: this project's headline Bend proof moved to `bend/constraint_gen/` (a compiler-correctness
+claim about the spec-to-constraints generator, not a checker-soundness one) — see
+[`bend-proof.md`](bend-proof.md) and the README. Everything below about DRCP/Pumpkin itself, and
+about `bend/checker_soundness/`'s still-real-if-narrower soundness proof, remains accurate as
+written; only which proof is "the point" of this project has changed.*
+
 ## What's confirmed fact about Pumpkin
 
 These are checked against a primary source in each case, not relayed from a research summary

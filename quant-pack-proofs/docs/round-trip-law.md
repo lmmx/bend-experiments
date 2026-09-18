@@ -118,7 +118,17 @@ All terms check.
 
 It says: for every block of trits (any length, any content), packing then
 unpacking recovers exactly the same block, at packing arity 2. It says
-nothing about arity 5 (see `packing-arithmetic.md` for why that arity's
-proof was judged out of reach here, and why arity 2 exercises the identical
-technique). It says nothing about the `f32` scale factor - see
-`proof-boundary.md`.
+nothing about the `f32` scale factor - see `proof-boundary.md`.
+
+**Update: arity 5 (the real target) is now proven too.** What this section
+originally said - that the arity-5 proof was judged out of reach in the
+time available - was true for the session that wrote it, but was then
+actually attempted, hit a real bug, and proven in full: see
+`bend-proof.md` for the derivation (the real digit-order bug in
+`unpack5`'s first draft, the concrete counterexample `bend` rejected, the
+fix, and the completed proof - both the single-5-trit-group law and its
+generalization to a list of any length) and `bend/pack_unpack_5trit/` for
+the code. This file (and `bend/pack_unpack/`) is kept as-is, documenting
+the arity-2 stand-in that was proven first and the reasoning that led to
+it - not because arity 5 remains unproven, but because the stand-in is
+still useful groundwork and the record of first attempting it honestly.
