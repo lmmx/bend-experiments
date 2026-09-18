@@ -38,20 +38,23 @@ Bend's job is one level up: it proves properties of the **verdict algebra** — 
 checker that decides what the per-bullet results add up to. Three laws, in
 [`docs/bend-role.md`](docs/bend-role.md):
 
-1. **Coverage** — the report carries exactly one verdict per bullet in the document. Rules out the
-   most natural way an AI-written linter goes quietly green: `filter_map(parse_bullet)`, which drops
-   what it cannot parse.
-2. **Join soundness and order-independence** — the fold over verdicts is a lattice join with
-   `Fail > Abstain > Pass`, associative and commutative, so a `Fail` anywhere forces `Fail` overall
-   and no reordering or re-chunking of bullets changes the answer.
-3. **Adversarial-model soundness** — for *every possible output the local model could produce*,
-   including one that returns "pass" for everything, `hybrid(doc, model) == Pass` implies
-   `deterministic(doc) == Pass`. A hallucinating, mis-prompted, or prompt-injected model cannot turn
-   a failing journal into a passing one.
+1. **Section partition** — JOURNAL.md's `Current State` / `Stubbed` / `Missing` are predicates over
+   a four-state evidence chain, and every evidence state must admit exactly one of them. Rules out a
+   silent overlap (the distinction L20 asks for is not enforced) and a silent gap (some bullets
+   abstain forever). **Currently undischargeable**, because writing it surfaces a case JOURNAL.md
+   never rules on — see X4 in `docs/rule-taxonomy.md`. That is the law's first useful output.
+2. **Non-interference** — untrusted semantic evidence may add a rejection; it may never remove one
+   established by trusted evidence. Quantified over *every possible output the local model could
+   produce*, which is a space no test suite can sample and no type signature can constrain. Stated
+   for someone who does not care about Bend: adding a language model cannot make the checker accept
+   something the trusted checker rejected.
 
-Law 3 is the one that earns the Bend dependency. It quantifies over the model's entire output space,
-which no test suite and no type signature can do, and it is the security boundary of *any* LLM-in-
-the-loop checker, not just this one.
+Two earlier candidates (one-verdict-per-bullet, and the lattice properties of the verdict join) were
+**demoted after external review** — the first is carried by Rust's types, the second is exhaustive in
+27 `proptest` cases. A third guarantee, that the model cannot invent a file reference, was moved out
+of Bend entirely and into the type system, where it is unrepresentable rather than merely proven. The
+full accounting, including where the review was itself wrong, is in
+[`docs/bend-role.md`](docs/bend-role.md#revision-after-external-review).
 
 ## What reading the real entries turned up
 

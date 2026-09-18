@@ -76,6 +76,7 @@ polarity flip in A10.
 | X1 | "Use factual present tense only" (L33) versus the ✅-marked example "`resplit_stratified.py` **was run** on the checked-in 3119-example splits" (L50) | L33 vs L50 |
 | X2 | "Avoid bare constative verbs (exists, is)" (L30) versus "**Stubbed** - What **exists** as placeholder implementations" (L14) and, in giacometti's copy, the ✅ example bullets "Backend architecture established (git + uv)" / "Shell backends functional (git/shell.rs, uv/shell.rs)", which carry no behavioural predicate at all | L30 vs L14 and giacometti `docs/JOURNAL.md` L73-78 |
 | X3 | "File paths in parentheses after statements" (L59) versus this repo's own entries, which inline backticked paths as the bullet's subject (`../../docs/journal/2026-09-18-stencil-boundary-proofs.md`) — the rule reads as prescribing parenthetical placement, and nothing in the repo follows it | L59 |
+| X4 | **The section scheme has a gap.** L20 splits "stubbed" (code exists, returns error) from "missing" (no code) as though the file question and the symbol question move together. They do not: a bullet citing a symbol that does not exist in a file that does (`FileOnly` in `bend-role.md`'s evidence chain) is admitted by neither definition. Surfaced by attempting the section-partition law, not by reading | L15, L20 |
 
 X1-X3 are not defects in the checker design. They are the first output of taking the prompt
 seriously enough to run it: a rule that has never been mechanically applied has never been tested

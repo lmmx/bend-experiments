@@ -210,3 +210,153 @@ across siblings" pattern that wants two mutually recursive functions. `Doc → S
 same shape. The fix used there — fold both directions into one function over the list type, wrapping
 a single node in a singleton list — is the fix here too, and it should be assumed as a cost up front
 rather than discovered.
+
+---
+
+# Revision, after external review
+
+A review of the first draft (GPT-5-class model, given this design but not this repository) pushed on
+the claim that the verdict algebra earns the Bend dependency. Most of the push was right, and the
+revision below demotes two of the three laws, adds one that is better than any of them, and moves a
+fourth proposed guarantee **out of Bend entirely** into the type system.
+
+## Demotion 1 — Law 1 is a design constraint wearing a law's clothes
+
+The review's objection: proving one verdict per `Unit` over an already-constructed `Doc` says nothing
+about whether the parser built the right `Doc`, which is where the `filter_map` bug actually lives.
+
+That is correct, and the first draft half-conceded it under "the seam Bend does not cover" without
+following it through. The genuine content of Law 1 is not the proof — it is the **IR shape the proof
+forces**: a parse failure must be representable as a `Unit` with a verdict, not as an absence. Once
+the Rust type is `Vec<Unit>` built by a total function, Rust's own types carry the count, and the
+Bend law restates them.
+
+Law 1 stays as a cheap regression against a future refactor that introduces a real traversal (nested
+lists, multi-paragraph bullets). It is no longer part of the argument for using Bend.
+
+## Demotion 2 — Law 2 is arithmetic
+
+`join_assoc`, `join_comm` and `fail_absorbs` over a three-element enum are nine `{==}` cases. The
+review's test — *what real failure does this prevent that careful Rust plus property tests would
+not?* — is the right test, and the answer is "someone mis-implements `max` on three constructors".
+`proptest` over a three-element enum is exhaustive in 27 cases. Keep the laws (they cost minutes),
+drop them from the pitch.
+
+## The law this should have had: section partition
+
+The review's substantive suggestion was to move Bend down from the verdict layer to an
+**evidence/claim admissibility relation**. Taken literally that is a trap — "`Stubbed(p, s)` is
+admissible iff `FileExists(p) ∧ SymbolExists(p, s) ∧ ReturnsError(p, s)`" is a three-conjunct lookup,
+and proving a checker implements it is the "agrees with its own definition" triviality
+`../../AGENTS.md` bans, dressed in a larger inductive structure.
+
+But one theorem in that vicinity is real, and it is better than anything in the first draft. The
+evidence a repository supplies about a `(path, symbol)` pair forms a chain of four states:
+
+```python
+type Evidence is Data:
+  NoFile{}            # path absent
+  FileOnly{}          # path present, symbol absent
+  SymbolLive{}        # symbol present, at least one branch does real work
+  SymbolStub{}        # symbol present, every branch returns an error
+```
+
+and `../../docs/JOURNAL.md`'s sections are predicates over it (L13-16, L20). The claim:
+
+```python
+law sections_partition_evidence:
+  for +e: Evidence
+  {True{} == Sections.exactly_one(Claim.current_state(e),
+                                  Claim.stubbed(e),
+                                  Claim.missing(e)) : Bool}
+```
+
+Pairwise disjoint and jointly exhaustive: every evidence state admits exactly one section. This is
+the formalization of L20's "distinguish 'stubbed' (code exists, returns error) from 'missing' (no
+code)", and it rules out two failures a hand-written checker reaches naturally — an **overlap**,
+where a bullet would pass in two sections and the distinction JOURNAL.md asks for is not enforced,
+and a **gap**, where some evidence state admits no section at all and the affected bullets abstain
+forever with no one noticing.
+
+`Divergence` is deliberately outside the partition: L16 and L21 make it a *pair* of claims (the
+README documents X, the code does not do X), so it is a product over `(ReadmeEvidence, Evidence)`
+whose code-half must coincide with `Claim.missing`. That coincidence is the second half of the law,
+and stating it is what makes the four sections a scheme rather than four independent rules.
+
+### The law is currently undischargeable, and that is the finding
+
+Writing it forces a ruling JOURNAL.md does not supply: **where does `FileOnly` go?** A bullet citing
+`policy.rs::enforce_least_privilege` where `policy.rs` exists and the function does not — is that
+**Missing** ("functionality that has no code yet", L15, arguably yes) or is it nothing at all? L15
+does not say, and neither does L20, whose two-way split assumes the file question and the symbol
+question move together.
+
+Per `../../AGENTS.md` — "a law you can't yet prove is still worth writing down; leave the proof as
+`?TODO` rather than skip the law" — this ships as a stated law with no proof, and it becomes **X4** in
+`rule-taxonomy.md`'s contradiction tier. The law's first output is not a verdict about a journal. It
+is a question the specification has to answer before any tier can implement the section rules at all,
+and nothing short of trying to prove the partition surfaces it.
+
+## Law 3 survives, reframed as non-interference
+
+The review's reframing is better than the original wording and is adopted:
+
+> Untrusted semantic evidence may add a rejection. It may never remove a rejection established by
+> trusted evidence.
+
+with `join(Fail, anything) = Fail` as the consequence rather than the headline. This states the
+guarantee to someone who does not care about Bend: *adding a language model cannot make the checker
+accept something the trusted checker rejected.*
+
+## Where the review was wrong, and it matters
+
+**It invented the specification.** Not having the repository, it supposed JOURNAL.md says things like
+"entries must be grounded in actual events", "uncertainty must be preserved rather than silently
+resolved", "contradictions need to be surfaced rather than overwritten", and proposed an IR of
+`SourceEvent → Observation → Claim → Inference → unresolved_questions`.
+
+`../../docs/JOURNAL.md` says none of that. It is 66 lines of style guide about markdown bullets that
+cite file paths. The proposed IR is a model of a research lab notebook, derived from the word
+"journal" — which is the day-planner failure exactly: a semantic model manufactured to give the
+formal machinery something to do, in a review whose own central warning is *"I would not translate
+the entire natural-language prompt into a pile of Bend rules... that risks reproducing exactly the
+failure mode you're describing."* The advice is right. Its author did not follow it, because it could
+not read the source document, and it proposed the IR anyway rather than saying so.
+
+The discipline holds: the IR is `Bullet → (section, cited path, cited symbol, cited line range)`,
+because that is what JOURNAL.md L10-21 and L56-60 actually talk about.
+
+## The guarantee that belongs in the type system, not in Bend
+
+The review's strongest architectural point — **the model should extract, not judge; it should have no
+`Pass` concept at all** — is right, and `nl-tier.md` is updated for it. But the conclusion drawn from
+it (that this makes the formal layer less necessary) is backwards, and the reasoning is worth
+following because it ends somewhere neither draft expected.
+
+Moving the model from judging to extracting does not remove the trust problem, it relocates it. A
+prompt-injected extractor cannot emit `Pass`, but it can emit a *different path* — one that happens
+to exist — and the deterministic layer will then faithfully verify a claim the bullet never made. So
+the property needed is no longer about verdicts:
+
+> For every possible extractor output, the set of references checked is a subset of the references
+> lexically present in the bullet.
+
+And the strongest form of that is **not a Bend law**. It is a type: make the extractor's output an
+index into the bullet's lexically-extracted reference list rather than a free-form string, and an
+invented reference is unrepresentable — no proof required, nothing to discharge, nothing to keep in
+sync. That is the same move `../../sumac-location-safety-proofs/` makes ("makes 3 warn-only sumac
+states unrepresentable"), and where it applies it beats a proof.
+
+Being ruthless about this, as the review asked for and then did not do, leaves Bend with exactly two
+jobs in this project:
+
+| | Mechanism | Why not something cheaper |
+|---|---|---|
+| Sections partition the evidence space | **Bend law, currently `?TODO`** | Quantified over the evidence type; exposes a spec gap the type system cannot see |
+| Untrusted interpretation cannot remove a trusted rejection | **Bend law** | Quantified over the model's entire output space; unsampleable by test, invisible to types |
+| Extractor cannot invent a reference | **Rust type** | Unrepresentable beats proven |
+| One verdict per unit | **Rust type + one regression law** | The types carry the count |
+| Join is a lattice | **`proptest`, exhaustive in 27 cases** | Arithmetic |
+
+Two laws is a smaller claim than the first draft made. It is also the first version of this design
+where both of them would survive the question the review asked.

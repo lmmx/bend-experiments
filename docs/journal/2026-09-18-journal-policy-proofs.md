@@ -16,6 +16,23 @@
   verdict per bullet; the verdict join is an associative, commutative lattice with `Fail` absorbing;
   a hybrid run's verdict is never closer to `Pass` than the deterministic run's, for every possible
   model output) and names four uses of Bend it rules out as establishing nothing.
+- `journal-policy-proofs/docs/bend-role.md`'s "Revision, after external review" section demotes the
+  first two of those three laws (the first is carried by Rust's own types once parse failure is a
+  `Unit` rather than an absence; the second is exhaustive in 27 `proptest` cases over a three-element
+  enum), reframes the third as non-interference, and adds a section-partition law over a four-state
+  evidence chain (`NoFile`, `FileOnly`, `SymbolLive`, `SymbolStub`) stating that every evidence state
+  admits exactly one of `Current State`, `Stubbed`, `Missing`.
+- The section-partition law carries no proof — discharging it requires a ruling
+  `docs/JOURNAL.md:15,20` does not supply, on a bullet citing a symbol absent from a file that is
+  present, recorded as X4 in `journal-policy-proofs/docs/rule-taxonomy.md`.
+- `journal-policy-proofs/docs/bend-role.md` records that the guarantee "an untrusted extractor cannot
+  invent a file reference" sits in the Rust type system rather than in a Bend law — the extractor's
+  output indexes the bullet's lexically-extracted reference list instead of carrying a string, making
+  an invented reference unrepresentable.
+- `journal-policy-proofs/docs/nl-tier.md` gives the model a structured extraction output with no
+  `Pass` constructor, and records that removing the model's verdict does not remove the trust problem
+  — an injected extractor naming a different existing path produces a faithful check of a claim the
+  bullet never made.
 - `journal-policy-proofs/docs/bend-role.md` records that none of its `.bend` blocks has been
   syntax-checked or proven — `bend` is absent from this session and the documented install path
   (`curl -fsSL https://bend-lang.com/install.sh | sh`) was declined by the sandbox permission
