@@ -1,0 +1,26 @@
+# mistralrs-cuda-notes: docs-only project. No build step; this just sanity-checks the docs.
+
+default: check
+
+# Check every relative markdown link in this project resolves to a real file,
+# and flag any leftover TODO/FIXME markers.
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    status=0
+    for f in README.md docs/*.md; do
+        while IFS= read -r link; do
+            target="${link%%#*}"
+            [ -z "$target" ] && continue
+            path="$(dirname "$f")/$target"
+            if [ ! -f "$path" ]; then
+                echo "BROKEN LINK in $f: $link"
+                status=1
+            fi
+        done < <(grep -oE '\]\((\.\./|docs/)[^)]+\.md[^)]*\)' "$f" | sed -E 's/^\]\((.*)\)$/\1/')
+    done
+    if grep -rn "TODO\|FIXME" README.md docs/*.md; then
+        echo "Found TODO/FIXME markers above."
+        status=1
+    fi
+    exit $status

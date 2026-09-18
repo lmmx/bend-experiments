@@ -261,7 +261,7 @@ computed from probed compute capability/CUDA version, gating a new kernel module
 `isq_executor.rs` defines the scheduler's own per-format classification:
 
 ```rust
-// isq_executor.rs (near top)
+// isq_executor.rs:48
 pub enum IsqKernelKind {
     Copy, Ggml, GgmlImatrix, GgmlExpertStack, Afq, Hqq, F8, Mxfp4, Other,
 }
