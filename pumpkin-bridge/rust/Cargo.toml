@@ -1,0 +1,10 @@
+[package]
+name = "pumpkin-bridge"
+version = "0.1.0"
+edition = "2021"
+description = "A small task-scheduling CSP solved with pumpkin-solver, plus an independent checker of its solution."
+
+[dependencies]
+# Version and feature flags match the working examples in
+# /home/user/lmmx/hello-pumpkin (pumpkin-solver 0.1.4, default-features off).
+pumpkin-solver = { version = "0.1.4", default-features = false }
