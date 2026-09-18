@@ -1,0 +1,22 @@
+# pumpkin-bridge: solve a real scheduling CSP with pumpkin-solver, verify
+# its solution independently, and prove (in Bend) that a checker of this
+# shape is sound.
+# `bend` must be on PATH; `cargo` must be able to reach crates.io.
+
+default: check
+
+# Build and run the pumpkin-solver scheduling example (rust/src/main.rs).
+run:
+    cd rust && cargo run
+
+# Run the Rust unit tests for check_solution.
+test:
+    cd rust && cargo test
+
+# Check the Bend soundness proof. Must print "All terms check."
+prove:
+    cd bend/checker_soundness && bend PROOF.bend
+
+# Everything: cargo run, cargo test, and the Bend proof.
+check: run test prove
+    @echo "pumpkin-bridge: solver ran, checker tests passed, proof checks."

@@ -74,7 +74,7 @@ def all_different_check(xs: List<&2, Nat>) -> Bool:
   match xs:
     case Nil{}:
       True{}
-    case h <> t:
+    case h <> +t:
       not_in_check(h, t) && all_different_check(t)
 
 # LAW: soundness. If the direct Bool checker says a list is all-different,
