@@ -1,0 +1,25 @@
+# bend-primer: check every proof, print the guide.
+# `bend` must be on PATH (curl -fsSL https://bend-lang.com/install.sh | sh).
+
+default: check
+
+# Check every PROOF.bend under examples/ — each must print "All terms check."
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    status=0
+    for f in examples/*/PROOF.bend; do
+        echo "== $f =="
+        if ! bend "$f"; then
+            status=1
+        fi
+    done
+    exit $status
+
+# Print Bend's own guide (bend guide), for reference.
+guide:
+    bend guide
+
+# Print Bend's Base library.
+base:
+    bend base

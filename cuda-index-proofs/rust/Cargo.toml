@@ -1,0 +1,11 @@
+[package]
+name = "cuda-index-proofs"
+version = "0.1.0"
+edition = "2021"
+description = "CPU-only CUDA index arithmetic, cross-checked against Bend proofs (see ../bend/)"
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

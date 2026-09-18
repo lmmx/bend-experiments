@@ -1,0 +1,5 @@
+# Rust build artifacts (Cargo.lock IS tracked - these are demo binaries, pin deps)
+target/
+
+# misc
+.DS_Store

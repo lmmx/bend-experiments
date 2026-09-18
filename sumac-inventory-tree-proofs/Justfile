@@ -1,0 +1,20 @@
+# sumac-inventory-tree-proofs
+# `bend` must be on PATH (curl -fsSL https://bend-lang.com/install.sh | sh).
+
+default: check
+
+# The general proof: bend PROOF.bend -> All terms check.
+prove:
+    cd bend/tree_sum_agrees && bend PROOF.bend
+
+# The buggy first attempt's counterexample claim, rejected on purpose.
+# Expected to exit non-zero -- that IS the demonstration. Not part of `check`.
+bug:
+    cd bend/tree_sum_agrees && bend buggy_first_attempt_disproved.bend; test $? -ne 0
+
+test:
+    cd rust && cargo test
+
+# The actual verification gate: only the things that are supposed to pass.
+check: prove test
+    @echo "sumac-inventory-tree-proofs: proof checks, tests pass (see 'just bug' for the deliberate rejection)."

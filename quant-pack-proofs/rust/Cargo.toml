@@ -1,0 +1,15 @@
+[package]
+name = "quant-pack-proofs"
+version = "0.1.0"
+edition = "2021"
+description = "Ternary weight bit-packing (in the style of PrismML PTQ1_0 / BitNet b1.58) with a Rust round-trip cross-check of the Bend-proven integer packing law."
+publish = false
+
+[lib]
+name = "quant_pack"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

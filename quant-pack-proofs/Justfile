@@ -1,0 +1,42 @@
+# quant-pack-proofs: prove the integer packing laws in Bend (both the
+# 2-trit stand-in and the real 5-trit/byte target), test the Rust
+# implementation (integer packing + float dequant), then all of it.
+#
+# `bend` must be on PATH (curl -fsSL https://bend-lang.com/install.sh | sh).
+# `cargo`/`rustc` must be on PATH.
+
+default: check
+
+# Check bend/pack_unpack/PROOF.bend — must print "All terms check."
+prove:
+    bend bend/pack_unpack/PROOF.bend
+
+# Check bend/pack_unpack_5trit/PROOF.bend (the real 5-trit/byte target) —
+# must print "All terms check."
+prove5:
+    bend bend/pack_unpack_5trit/PROOF.bend
+
+# Run the buggy first attempt's counterexample claim — expected to be
+# REJECTED by bend (exit non-zero), on purpose: it's demonstrating the
+# checker catching a real digit-order bug, not a broken build. See
+# docs/bend-proof.md.
+bug5:
+    bend bend/pack_unpack_5trit/buggy_first_attempt_disproved.bend
+
+# Run the Bend demos (concrete packed/unpacked examples, both arities).
+demo:
+    bend bend/pack_unpack/main.bend
+
+demo5:
+    bend bend/pack_unpack_5trit/main.bend
+
+# Run the Rust crate's tests (unit tests + proptest round-trip properties,
+# both arities, plus the float dequant step).
+test:
+    cd rust && cargo test
+
+# Everything that's supposed to pass: both Bend proofs, then the Rust
+# tests. This is the end-to-end gate. (`bug5` is deliberately excluded —
+# see its own recipe comment.)
+check: prove prove5 test
+    @echo "quant-pack-proofs: both Bend proofs check and cargo test passes."

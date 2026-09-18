@@ -1,0 +1,35 @@
+# pumpkin-bridge: solve a real scheduling CSP with pumpkin-solver, verify
+# its solution independently, and prove (in Bend) that the FUNCTION which
+# compiles a scheduling spec into Pumpkin constraints (gen_constraints) is
+# semantically faithful to the spec, for every spec and every assignment.
+# `bend` must be on PATH; `cargo` must be able to reach crates.io.
+
+default: check
+
+# Build and run the pumpkin-solver scheduling example (rust/src/main.rs).
+run:
+    cd rust && cargo run
+
+# Run the Rust unit tests for check_solution / gen_constraints.
+test:
+    cd rust && cargo test
+
+# The headline proof: gen_constraints_faithful, for every spec and
+# assignment. Must print "All terms check."
+prove:
+    cd bend/constraint_gen && bend PROOF.bend
+
+# The demoted, narrower soundness proof (see bend/checker_soundness/LAWS.bend
+# for why it's kept but no longer the headline). Must also print
+# "All terms check." -- part of `check` since it's still a real proof.
+prove-checker-soundness:
+    cd bend/checker_soundness && bend PROOF.bend
+
+# The buggy first attempt's counterexample claim, rejected on purpose.
+# Expected to exit non-zero -- that IS the demonstration. Not part of `check`.
+bug:
+    cd bend/constraint_gen && bend buggy_first_attempt_disproved.bend; test $? -ne 0
+
+# Everything that's supposed to pass: cargo run, cargo test, both Bend proofs.
+check: run test prove prove-checker-soundness
+    @echo "pumpkin-bridge: solver ran, checker tests passed, both proofs check (see 'just bug' for the deliberate rejection)."

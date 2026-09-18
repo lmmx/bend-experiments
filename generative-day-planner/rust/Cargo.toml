@@ -1,0 +1,15 @@
+[package]
+name = "generative-day-planner"
+version = "0.1.0"
+edition = "2021"
+description = "Free text -> heuristic task extraction -> Bend-proven Body/Mind sequencing -> Pumpkin-solved clock times."
+
+[dependencies]
+# Same pin as ../../pumpkin-bridge/rust/Cargo.toml -- matches the verified API
+# surface of /home/user/lmmx/hello-pumpkin's examples (pumpkin-solver 0.1.4,
+# default-features off). See that project's README for why 0.1.4 specifically.
+pumpkin-solver = { version = "0.1.4", default-features = false }
+
+[[bin]]
+name = "day-planner"
+path = "src/main.rs"

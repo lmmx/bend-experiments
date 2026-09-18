@@ -1,0 +1,33 @@
+# generative-day-planner: free text -> heuristic task extraction -> Bend-proven
+# Body/Mind sequencing -> Pumpkin-solved clock times.
+# `bend` must be on PATH; `cargo`/`rustc` must be able to reach crates.io. No GPU used.
+
+default: check
+
+# The example pipeline: 3 sample inputs run end-to-end (rust/src/main.rs).
+run:
+    cd rust && cargo run
+
+# Rust unit tests: nlu (extraction), alt_sequence (mirrors + cross-checks the Bend
+# worked example), scheduler (admin/gap placement + Pumpkin timing).
+test:
+    cd rust && cargo test
+
+# The proof this project's sequencing relies on: for every fuel and every starting
+# modality, bend/alt_no_repeat/main.bend's alt() never places two adjacent
+# same-modality entries. Must print "All terms check."
+prove:
+    cd bend/alt_no_repeat && bend PROOF.bend
+
+# INFORMATIONAL ONLY, not part of `check`: the real first attempt (greedy,
+# tie-breaks-to-Body) reproducing its own documented bug -- interleave(4n, 3n) prints
+# two adjacent Body{}s. Exit code is whatever `bend` gives a successful *run* (this
+# file has no disproved claim to reject, unlike pumpkin-bridge's `just bug`); it's kept
+# out of `check` because it's a demonstration of the bug, not a verification gate.
+bug:
+    cd bend/alt_no_repeat_buggy_attempt && bend greedy_buggy_first_attempt.bend
+
+# The actual gate: proof + tests. (`run` is included too since the brief asks for an
+# end-to-end pipeline run to be verified, not just claimed.)
+check: prove test run
+    @echo "generative-day-planner: alt_no_repeat proof checks, 15/15 cargo tests pass, example pipeline ran end to end (see 'just bug' for the buggy-attempt record, kept out of this gate)."
