@@ -1,0 +1,11 @@
+[package]
+name = "stencil-boundary-proofs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "stencil_boundary_proofs"
+path = "src/lib.rs"
+
+[dev-dependencies]
+proptest = "1"
