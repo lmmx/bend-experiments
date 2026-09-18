@@ -19,10 +19,15 @@
 //! map is *injective* on the valid thread range (`thread < block_dim`) — no
 //! two distinct `(block, thread)` pairs a real launch could produce ever
 //! start at the same index, which is what makes the loop free of duplicate
-//! work. [`grid_stride_visits`] additionally lets a property test check
-//! *coverage* (every index in `[0, n)` gets visited, and by exactly one
-//! thread's stride sequence) — that half is only tested here, not proven in
-//! Bend; see `../../docs/grid-stride-formalization.md`.
+//! work — and, via `Laws.flatten_covers`, that it is *surjective* onto
+//! `[0, grid_dim*block_dim)`: [`unflatten_index`] is a genuine right-inverse
+//! of `flatten_index` on that range, so every index in a full launch's span
+//! really does get visited by some thread. Together these are the two
+//! halves of "a grid-stride loop visits every index exactly once."
+//! [`grid_stride_visits`] additionally lets a property test check the same
+//! coverage fact directly on this `u32` implementation (not just the `Nat`
+//! abstraction Bend proves it over); see
+//! `../../docs/grid-stride-formalization.md`.
 
 /// The linear thread id a CUDA launch computes for a given block and thread,
 /// under a block dimension of `block_dim` threads per block:
@@ -33,6 +38,30 @@
 /// bd)` term for term (`Nat.add(Nat.mul(block, bd), thread)`).
 pub fn flatten_index(block: u32, thread: u32, block_dim: u32) -> u32 {
     block * block_dim + thread
+}
+
+/// The explicit coverage witness: given a flat index `k` and the launch's
+/// `block_dim`, the `(block, thread)` pair whose `flatten_index` produces
+/// `k`, namely `(k / block_dim, k % block_dim)`.
+///
+/// Structurally mirrors `bend/grid_stride_coverage/PROOF.bend`'s witness
+/// term for term: `Laws.flatten_covers` builds `block = Nat.div(k, bd)`,
+/// `thread = Nat.mod(k, bd)` and proves `flatten(block, thread, bd) == k`
+/// (plus `block < gd`, `thread < bd`) for every `k < gd*bd`, `bd > 0` — the
+/// same quotient-then-remainder pairing this function computes.
+///
+/// The pairing direction matters and is easy to get backwards: swapping to
+/// `(k % block_dim, k / block_dim)` — block from the remainder, thread from
+/// the quotient — does *not* round-trip in general. For `k = 7`,
+/// `block_dim = 5`: the correct pairing gives `(1, 2)`, and
+/// `flatten_index(1, 2, 5) == 7`; the swapped pairing gives `(2, 1)`, and
+/// `flatten_index(2, 1, 5) == 11 != 7`. This was hit for real while writing
+/// the Bend proof: `bend` rejected a direct claim that the swapped pairing
+/// round-trips for this exact instance, reporting the concrete mismatch
+/// (`expected: 11n, observed: 7n`) — see
+/// `../../docs/grid-stride-formalization.md`.
+pub fn unflatten_index(k: u32, block_dim: u32) -> (u32, u32) {
+    (k / block_dim, k % block_dim)
 }
 
 /// The total number of threads a launch of `grid_dim` blocks of
@@ -158,5 +187,50 @@ mod tests {
     fn flatten_index_matches_hand_worked_example() {
         // block 2, thread 3, block_dim 32 -> 2*32+3 = 67
         assert_eq!(flatten_index(2, 3, 32), 67);
+    }
+
+    // Proven in Bend (bend/grid_stride_coverage/PROOF.bend,
+    // `Laws.flatten_covers`) for *all* Nat k, grid_dim, block_dim > 0 with
+    // k < grid_dim*block_dim. Sampled here on the real u32 implementation:
+    // unflatten_index is a right-inverse of flatten_index on that range,
+    // and its two components are within the launch's bounds.
+    proptest! {
+        #[test]
+        fn unflatten_index_round_trips(
+            block_dim in 1u32..=1024,
+            grid_dim in 1u32..=1024,
+            k_seed: u32,
+        ) {
+            let k = k_seed % (grid_dim * block_dim);
+            let (block, thread) = unflatten_index(k, block_dim);
+            prop_assert!(block < grid_dim);
+            prop_assert!(thread < block_dim);
+            prop_assert_eq!(flatten_index(block, thread, block_dim), k);
+        }
+    }
+
+    #[test]
+    fn unflatten_index_matches_hand_worked_example() {
+        // k=7, block_dim=5 -> block=1, thread=2, and 1*5+2 == 7
+        assert_eq!(unflatten_index(7, 5), (1, 2));
+        assert_eq!(flatten_index(1, 2, 5), 7);
+    }
+
+    // The plausible bug `unflatten_index`'s doc comment describes: pairing
+    // the witness backwards (block from k%block_dim, thread from
+    // k/block_dim) does not round-trip. This is the same k=7, block_dim=5
+    // instance `bend` rejected a false round-trip claim about while this
+    // proof was being built (see docs/grid-stride-formalization.md) --
+    // reproduced here on the real u32 implementation as a regression check,
+    // not just in the Bend proof.
+    #[test]
+    fn swapped_pairing_does_not_round_trip() {
+        let k = 7;
+        let block_dim = 5;
+        let swapped_block = k % block_dim; // should be k / block_dim
+        let swapped_thread = k / block_dim; // should be k % block_dim
+        assert_eq!((swapped_block, swapped_thread), (2, 1));
+        assert_ne!(flatten_index(swapped_block, swapped_thread, block_dim), k);
+        assert_eq!(flatten_index(swapped_block, swapped_thread, block_dim), 11);
     }
 }

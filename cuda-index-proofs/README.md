@@ -27,13 +27,17 @@ Two law/proof pairs, each with a matching Rust module:
 
 1. **Grid-stride loop coverage** (`bend/grid_stride_coverage/`, `rust/src/grid_stride.rs`) — a CUDA
    launch's linear-thread-id map `flatten(block, thread, block_dim) = block*block_dim + thread` is
-   proven **injective** on the valid thread range (`thread < block_dim`): no two distinct
-   `(block, thread)` pairs a real launch produces ever collide to the same starting index. This is
-   the half of "a grid-stride loop visits every index exactly once" that rules out redundant
-   work / data races; the other half (every index gets *some* thread) is stated but not proven —
-   see "What's proven vs. illustrative" below and
-   [`docs/grid-stride-formalization.md`](docs/grid-stride-formalization.md) for exactly why and
-   what a full proof would need.
+   proven both **injective** on the valid thread range (`thread < block_dim`: no two distinct
+   `(block, thread)` pairs a real launch produces ever collide to the same starting index) and
+   **surjective** onto `[0, gridDim*blockDim)` (every index in that range is `flatten(block,
+   thread, block_dim)` for an explicit witness, `block = k/block_dim`, `thread = k%block_dim`).
+   Together these are the two halves of "a grid-stride loop visits every index exactly once" —
+   no double-visits, no gaps. The coverage proof caught a real bug along the way: the natural but
+   backwards witness pairing (`block = k%block_dim`, `thread = k/block_dim`) doesn't round-trip,
+   and `bend` rejected a direct claim that it does with a named mismatch before the proof was
+   written correctly — see "What's proven vs. illustrative" below and
+   [`docs/grid-stride-formalization.md`](docs/grid-stride-formalization.md) for the full
+   derivation.
 
 2. **Reduction-tree correctness, generalized** (`bend/reduction_generalized/`,
    `rust/src/reduction.rs`) — `demos/pure_par_sum` (shipped in the `bendlang/bend` repo, verified in
@@ -49,7 +53,8 @@ Two law/proof pairs, each with a matching Rust module:
 | Claim | Bend proof (universal) | Rust check (sampled) |
 |---|---|---|
 | `flatten_index` is injective on `thread < block_dim` | **Proven**, `bend/grid_stride_coverage/PROOF.bend`, `Laws.flatten_injective` | `proptest`, `rust/src/grid_stride.rs::flatten_index_is_injective` |
-| `flatten_index` is surjective onto `[0, gridDim*blockDim)` (no gaps) | **Not proven** — stated in prose only, see `docs/grid-stride-formalization.md` | exhaustive small-case check only, `full_launch_covers_every_index_exactly_once` |
+| `flatten_index` is surjective onto `[0, gridDim*blockDim)` (no gaps), via witness `unflatten_index(k, bd) = (k/bd, k%bd)` | **Proven**, `bend/grid_stride_coverage/PROOF.bend`, `Laws.flatten_covers` | `proptest`, `rust/src/grid_stride.rs::unflatten_index_round_trips` |
+| the full stride-sequence bijection (injectivity + coverage together, across a whole grid-stride loop) | not a separate Bend law (follows from the two above) | exhaustive small-case check only, `full_launch_covers_every_index_exactly_once` |
 | max-reduction tree == sequential max-scan | **Proven**, `bend/reduction_generalized/PROOF.bend`, `Laws.tree_is_seq` | `proptest`, `rust/src/reduction.rs::tree_max_matches_seq_max` |
 
 Every Bend claim above is proven over `Nat` (Bend's arbitrary-precision Peano numeral), not the
@@ -111,12 +116,13 @@ operator, which made it the tractable choice for this pass.
 
 ## What's illustrative only (not proven anywhere)
 
-- `bend/grid_stride_coverage/main.bend`'s and `bend/reduction_generalized/main.bend`'s `main()`
-  functions (which print a concrete example value) are illustrative code paths, not part of what
-  `bend`-checks the proofs: `bend <file>.bend` both type-checks *and runs* `main` when one is
+- `bend/reduction_generalized/main.bend`'s `main()` function (which prints a concrete example
+  value), and `bend/grid_stride_coverage/buggy_swapped_witness.bend`'s and
+  `buggy_swapped_witness_disproved.bend`'s `main()`s, are illustrative code paths, not part of
+  what `bend`-checks the proofs: `bend <file>.bend` both type-checks *and runs* `main` when one is
   present (`bend --help`: "check the file, then run main"), so these are verified to actually run
-  in this sandbox (see each file's comments for the exact depths used and why), but running them is
-  not what establishes correctness — the `PROOF.bend` checks are.
+  in this sandbox (see each file's comments for the exact values used and why), but running them
+  is not what establishes correctness — the `PROOF.bend` checks are.
 - `rust/src/grid_stride.rs`'s `full_launch_covers_every_index_exactly_once` test (see the table
   above) — real evidence, exhaustively checked over small shapes, not a proof.
 - Everything under "Real background on the CUDA-Rust ecosystem" below is cited from compiled
@@ -150,6 +156,9 @@ toolkit needed anywhere.
 just prove   # bend-checks every bend/*/PROOF.bend -> each must print "All terms check."
 just test    # cargo test in rust/ (includes the proptest property checks)
 just check   # both -- the full gate, verified to pass end to end in this session
+just bug     # bend-checks the deliberately-false swapped-witness claim -> rejected on purpose,
+             # exit nonzero; demonstrates the bug docs/grid-stride-formalization.md documents,
+             # not part of `just check`
 ```
 
 `LAWS.bend` files are never `bend`-checked standalone (a `law` with no matching `def` is, by
@@ -169,8 +178,10 @@ cuda-index-proofs/
 ├── bend/
 │   ├── grid_stride_coverage/
 │   │   ├── main.bend                             flatten, LT (order evidence)
-│   │   ├── LAWS.bend                              flatten_injective law
-│   │   └── PROOF.bend                             the proof (verified: All terms check.)
+│   │   ├── LAWS.bend                              flatten_injective, flatten_covers laws
+│   │   ├── PROOF.bend                             both proofs (verified: All terms check.)
+│   │   ├── buggy_swapped_witness.bend             the real backwards-pairing bug, run for real
+│   │   └── buggy_swapped_witness_disproved.bend   `bend` rejecting a false claim about it
 │   └── reduction_generalized/
 │       ├── main.bend                             pow2, combine (max), tree, seq
 │       ├── LAWS.bend                              tree_is_seq law
@@ -179,6 +190,6 @@ cuda-index-proofs/
     ├── Cargo.toml                                proptest as a dev-dependency
     └── src/
         ├── lib.rs
-        ├── grid_stride.rs                        flatten_index, grid_stride_visits + proptests
+        ├── grid_stride.rs                        flatten_index, unflatten_index, grid_stride_visits + proptests
         └── reduction.rs                          tree_max, seq_max + proptests
 ```

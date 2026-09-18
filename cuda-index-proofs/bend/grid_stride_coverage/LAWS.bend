@@ -31,25 +31,29 @@ law flatten_injective:
   for  e: {Grid.flatten(b1, t1, bd) == Grid.flatten(b2, t2, bd) : Nat}
   ({b1 == b2 : Nat} & {t1 == t2 : Nat})
 
-# NOT STATED AS A LAW HERE, ON PURPOSE: "flatten is also surjective
-# onto [0, gridDim*blockDim)" -- every linear id below
-# gridDim*blockDim is flatten(block, thread, bd) for some block < gd,
-# thread < bd. This is the other half of the bijection a grid-stride
-# loop actually relies on (injectivity alone says no two threads
-# collide; you separately need every index to be *someone's* start).
-# It is real, and it is true, but a full proof needs an explicit
-# witness (block = k/bd, thread = k%bd) plus a divmod-uniqueness
-# argument -- essentially re-deriving demos/proof_numerics's
-# divmod_ok (bend/demos/proof_numerics/PROOF.bend:150) in this
-# vocabulary -- which was out of scope for this pass. Per Bend's own
-# convention (GUIDE.md: "`?TODO` leaves it open"; verified in this
-# session: a `law` with either no matching `def` or a `def` whose
-# body is `?TODO` makes `bend` print `Error: 1 TODO found. The code
-# is incomplete, and not a valid proof yet.` and exit nonzero, not
-# `All terms check.`) a genuinely-open law would not let this file's
-# `bend` run print `All terms check.` -- and this repo's Justfile
-# gate (`just prove`) requires that of every PROOF.bend it checks. So
-# the coverage/surjectivity claim is documented here and in
-# ../../docs/grid-stride-formalization.md instead of being declared
-# as a `law` that would leave this file failing. See that doc for the
-# full honesty ledger of what is and isn't proven.
+# LAW: flatten is also surjective onto [0, gridDim*blockDim) -- every
+# linear id k below gd*bd is flatten(block, thread, bd) for some
+# block < gd, thread < bd. This is the other half of the bijection a
+# grid-stride loop actually relies on (injectivity alone says no two
+# threads collide; you separately need every index to be *someone's*
+# start), and is proven constructively: the witness is the explicit
+# pair block = k/bd, thread = k%bd (Base's Nat.div/Nat.mod, i.e.
+# Nat.divmod), not an abstract existence argument. PROOF.bend derives
+# this by re-deriving Euclid's division property (the same shape as
+# demos/proof_numerics's divmod_ok, bend/demos/proof_numerics/
+# PROOF.bend:150) directly against Base's actual Nat.divmod.go
+# recursion (base.bend:558-567), which has a different recursive
+# shape than proof_numerics's own hand-rolled divmod -- see
+# ../../docs/grid-stride-formalization.md for the derivation,
+# including a real, deliberately-hit bug: pairing the witness
+# backwards (block = k%bd, thread = k/bd) makes the round-trip claim
+# false, and `bend` rejects a concrete instance of that false claim
+# with a named expected/observed mismatch before this law was written
+# -- documented in that file rather than silently fixed.
+law flatten_covers:
+  for  bd: Nat
+  for bd_pos: Grid.LT(0n, bd)
+  for +gd: Nat
+  for +k: Nat
+  for kb: Grid.LT(k, Nat.mul(gd, bd))
+  (Grid.LT(Nat.div(k, bd), gd) & Grid.LT(Nat.mod(k, bd), bd) & {Grid.flatten(Nat.div(k, bd), Nat.mod(k, bd), bd) == k : Nat})

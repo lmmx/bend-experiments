@@ -26,6 +26,14 @@ test:
 # Both: the full gate.
 check: prove test
 
+# Demonstrate `bend` rejecting the plausible swapped-witness bug the
+# coverage proof rules out (see bend/grid_stride_coverage/
+# buggy_swapped_witness_disproved.bend). Expected to exit non-zero --
+# that's the point, not a broken build -- so this is never part of
+# `check`.
+bug:
+    bend bend/grid_stride_coverage/buggy_swapped_witness_disproved.bend
+
 # Print Bend's own guide, for reference.
 guide:
     bend guide

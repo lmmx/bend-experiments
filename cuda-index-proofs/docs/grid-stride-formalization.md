@@ -41,6 +41,9 @@ separate facts:
    `flatten(block, thread)` for some valid pair (no gaps -- every element gets a
    thread).
 
+Both halves are proven in Bend, over `Nat`: `flatten_injective` (below) and
+`flatten_covers` (further down).
+
 ## What's proven: injectivity, unconditionally, over Nat
 
 [`../bend/grid_stride_coverage/LAWS.bend`](../bend/grid_stride_coverage/LAWS.bend)'s
@@ -151,60 +154,146 @@ computes. `demos/proof_numerics/PROOF.bend:150` (`Laws.divmod_ok`) proves the
 *existence* half of the same fact (that `Nat.divmod` produces a valid quotient and
 remainder); this proof is closer to the *uniqueness* half.
 
-## What's stated but not proven: surjectivity / coverage
+## What's proven: surjectivity / coverage, via an explicit witness
 
-`bend/grid_stride_coverage/LAWS.bend`'s trailing comment (not a `law` -- see why
-below) describes the missing half: every `k < gridDim*blockDim` is `flatten(block,
-thread, blockDim)` for some `block < gridDim`, `thread < blockDim`. Concretely, the
-witness is `block = k / blockDim`, `thread = k % blockDim` (Euclidean division again),
-and proving it needs:
+`bend/grid_stride_coverage/LAWS.bend`'s `flatten_covers`, proven in
+`bend/grid_stride_coverage/PROOF.bend` (checked: `bend
+bend/grid_stride_coverage/PROOF.bend` -> `All terms check.`), is the other half:
+every `k < gridDim*blockDim` is `flatten(block, thread, blockDim)` for some
+`block < gridDim`, `thread < blockDim`. It's proven constructively, not as an
+abstract existence statement -- the witness is built and shown to round-trip:
 
-1. `Nat.divmod`'s quotient/remainder decomposition of `k` by `blockDim` (reuse
-   `demos/proof_numerics`'s `divmod_ok`, or re-derive it in this vocabulary),
-2. a proof that the resulting `thread = k % blockDim` really is `< blockDim`
-   (`demos/proof_numerics/PROOF.bend:106-121`'s `le_eq` is most of this already), and
-3. unfolding `flatten(k/blockDim, k%blockDim, blockDim)` back down to `k` --
-   essentially the *existence* statement of the division algorithm, restated in this
-   module's vocabulary rather than `proof_numerics`'s.
-
-None of this is conceptually novel relative to `proof_numerics/PROOF.bend`'s already-
-shipped `divmod_ok` -- it's "port the argument," not "discover a new one" -- but doing
-it correctly (getting the associativity/re-arrangement of `Nat.mul(Nat.div(k,bd),
-bd)`-style terms right, as this document's injectivity proof shows is fiddly even for
-the easier half) needs real time this pass didn't have. It's marked as unproven
-rather than attempted-and-hand-waved: the injectivity proof above is the one this repo
-actually stands behind.
-
-**Why not just write `?TODO` in a `law` block for it, in the spirit of Bend's own
-convention?** Tried, and verified in this session what it does:
-
-```
-$ bend proof.bend   # a law with a `?TODO` def, or with no def at all
-Error: 1 TODO found.
-The code is incomplete, and not a valid proof yet.
+```python
+law flatten_covers:
+  for  bd: Nat
+  for bd_pos: Grid.LT(0n, bd)
+  for +gd: Nat
+  for +k: Nat
+  for kb: Grid.LT(k, Nat.mul(gd, bd))
+  (Grid.LT(Nat.div(k, bd), gd) & Grid.LT(Nat.mod(k, bd), bd) & {Grid.flatten(Nat.div(k, bd), Nat.mod(k, bd), bd) == k : Nat})
 ```
 
-Both an explicit `?TODO` body and a law with *no* matching `def` (per `GUIDE.md`,
-"a law with no def is an open claim") produce that same error, not
-`All terms check.` -- confirmed by direct experiment, not assumed. Since this
-repo's own ground rule is that every `PROOF.bend` it ships must print
-`All terms check.` (matching `bend-primer/Justfile` and every demo's own Justfile
-convention, which only ever check `PROOF.bend`, never `LAWS.bend`, for exactly this
-reason -- `bend demos/pure_par_sum/LAWS.bend` alone also prints `1 TODO found`, not
-`All terms check.`, verified the same way), leaving `flatten_covers` as a `law` with
-a `?TODO` proof would make `bend bend/grid_stride_coverage/PROOF.bend` itself fail.
-Rather than ship a failing check (or quietly drop it from the check without saying
-so), the coverage claim is documented here in prose instead of declared as a `law`.
-This is a deliberate choice about *how* to be honest about an open gap, not a claim
-that the gap doesn't exist.
+for every `bd, gd, k : Nat` with `bd > 0` and `k < gd*bd` (the two evidence
+parameters `bd_pos`, `kb`) -- the witness is `block = Nat.div(k, bd)`,
+`thread = Nat.mod(k, bd)` (Base's `Nat.div`/`Nat.mod`, i.e. `Nat.divmod`), and the
+law bundles all three things coverage actually needs: the block is in range, the
+thread is in range, and `flatten` applied to that exact pair gives back `k`.
 
-## What's illustrative only: the Rust side's coverage test
+### A real bug, hit and rejected, before this proof was written
 
-`rust/src/grid_stride.rs`'s `full_launch_covers_every_index_exactly_once` test
-*does* check the full bijection (injectivity and coverage together) -- but only by
+The natural first mistake when unpacking a flat index back into `(block, thread)`
+is pairing the quotient and remainder backwards -- `block = k % blockDim`,
+`thread = k / blockDim` instead of the other way around. This was tried for real
+in this session, not hypothesized after the fact:
+
+`bend/grid_stride_coverage/buggy_swapped_witness.bend`, run:
+
+```
+$ bend bend/grid_stride_coverage/buggy_swapped_witness.bend
+(2n, 1n, 11n)
+```
+
+For `k = 7`, `blockDim = 5`, the swapped pairing gives `block = 7 % 5 = 2`,
+`thread = 7 / 5 = 1`, and `flatten(2, 1, 5) = 2*5+1 = 11` -- not `7`. Then, matching
+`stencil-boundary-proofs/bend/right_idx_safe/buggy_first_attempt_disproved.bend`'s
+technique exactly, `bend/grid_stride_coverage/buggy_swapped_witness_disproved.bend`
+states the round-trip claim for that exact instance and asks the checker to accept
+it:
+
+```python
+def counterexample_claim() -> {Grid.flatten(swapped_block(7n, 5n), swapped_thread(7n, 5n), 5n) == 7n : Nat}:
+  {==}
+```
+
+```
+$ bend bend/grid_stride_coverage/buggy_swapped_witness_disproved.bend
+Error:
+- expected : 11n
+- observed : 7n
+Location: counterexample_claim
+```
+
+Same mechanism as the stencil project's off-by-one: `{==}` only closes a goal when
+both sides compute to the same term, and here `bend` reduces
+`flatten(swapped_block(7n,5n), swapped_thread(7n,5n), 5n)` to `11n` and reports the
+mismatch against the claimed `7n` directly. `just bug` runs this on demand (expected
+to exit non-zero -- that's the point, so it's not part of `just check`). The correct
+pairing, `block = k/bd, thread = k%bd`, is what `Laws.flatten_covers` actually uses
+and needs.
+
+### Why the proof needed its own divmod argument, not a straight port of `divmod_ok`
+
+`demos/proof_numerics/PROOF.bend:150`'s `Laws.divmod_ok` proves the same shape of
+fact (Euclid's division property) for a **hand-rolled** `divmod` whose recursion
+counts *up* from `0n` (`divmod.go(1n+p, m) = divmod.step(m, divmod.go(p, m))` --
+the wrap-or-bump step runs *after* the recursive call). Base's actual
+`Nat.div`/`Nat.mod` (`bend2/base.bend:558-623`) go through `Nat.divmod.go`, which
+has a genuinely different, tail-recursive shape:
+
+```python
+def Nat.divmod.go(n: Nat, m: Nat, d: Nat, r: Nat) -> Nat & Nat:
+  match n:
+    case 0n:
+      (d, r)
+    case 1n+np:
+      match m:
+        case 0n:
+          Nat.divmod.go(np, r, 1n+d, 0n)
+        case 1n+mp:
+          Nat.divmod.go(np, mp, d, 1n+r)
+```
+
+The quotient `d` and remainder `r` are threaded as explicit accumulators, and on
+rollover (`m = 0n`) the *next* countdown value `m` is set to the just-reached `r`
+(not to the divisor again) -- this only works because `m + r` stays invariant,
+equal to `bd - 1`, at every step (`m` counts down from `bd-1` to `0`, `r` counts
+up from `0` to `bd-1`, and their sum never changes). This is confirmed by reading
+`base.bend`'s actual source rather than assuming a shape, per this project's own
+convention (`../README.md`, `../../AGENTS.md`). Since `proof_numerics`'s technique
+(`Ok`, `wrap_ok`, `step_ok` -- `PROOF.bend:124-148`) is built around its *own*
+recursion, it doesn't transfer directly; `PROOF.bend` in this project instead
+inducts on `n` under the `m + r == bp` invariant directly (`go_bound`, `go_eq`,
+`bend/grid_stride_coverage/PROOF.bend:207-252`), proving, for every `n, m, r, d`
+with that invariant:
+
+- `go_bound`: the remainder component of `Nat.divmod.go(n, m, d, r)` is `< 1+bp`.
+- `go_eq`: `n + (r + d*(1+bp)) == R + Q*(1+bp)`, where `(Q, R)` is that same call's
+  result -- Euclid's identity, shifted additively by `d*(1+bp)` (rather than
+  subtracted) so no `Nat.sub` reasoning is needed.
+
+Specializing both at `n = k, m = bp, r = 0n, d = 0n` (the exact shape
+`Nat.divmod(k, 1n+bp)` itself calls with) gives `k == mod + div*(1+bp)` with
+`mod < 1+bp`; a separate, divmod-independent lemma, `euclid_bound`
+(`PROOF.bend:191-205`, proven by joint induction on `(D, gd)` -- peel one block's
+worth of `bd` from both `k`'s decomposition and `gd*bd` at a time, the same
+peeling idiom `lt_cancel_l` and the existing `lt_zero_absurd`/`transport_lt`
+helpers already use), turns `k < gd*bd` into `div < gd`. `Nat.add`'s left-recursive
+shape needed its own small algebra kit (`add_zero_r`, `add_succ_r`, `add_comm`,
+`add_swap`, `PROOF.bend:130-167`) mirroring `demos/proof_numerics`'s own
+`add_zero`/`add_succ`/`add_swap`/`add_comm` lemmas almost line for line, since
+Base's `Nat.add` has that project's own hand-rolled `add`'s exact recursive shape
+even though its `divmod` doesn't.
+
+None of `Nat.mul`'s own algebra (`mul_comm`, `mul_dist`, etc.) was needed --
+every place `Nat.mul(1n+p, b)` appears, it unfolds to `Nat.add(b, Nat.mul(p,b))`
+by direct computation, with no lemma required.
+
+## The Rust side: `unflatten_index` mirrors the witness, one test is still illustrative-only
+
+`rust/src/grid_stride.rs::unflatten_index(k, block_dim) = (k / block_dim, k %
+block_dim)` is the same witness `Laws.flatten_covers` builds, term for term (its
+doc comment points back at the proof). `unflatten_index_round_trips` samples the
+same property the Bend law establishes universally -- round-trip plus both bounds
+-- on the real `u32` implementation, the same relationship
+`flatten_index_is_injective` already had to `flatten_injective`. A second test,
+`swapped_pairing_does_not_round_trip`, reproduces the backwards-pairing bug from
+above directly on `u32` arithmetic as a regression check, not just in the Bend
+proof.
+
+`full_launch_covers_every_index_exactly_once` is the one piece that stays
+illustrative-only: it checks the full bijection (injectivity and coverage
+*together*, as actually exercised by a grid-stride loop's stride sequence) by
 exhaustive enumeration over small launch shapes (`block_dim, grid_dim` up to 6, `n`
-up to 40), not a proof. It is real evidence the Rust implementation and the informal
-"no gaps, no double-visits" claim agree on every shape tried, but -- unlike
-`flatten_index_is_injective`, which is a property test of something also proven in
-Bend -- there is no corresponding Bend proof backing it. The README's "what's proven
-vs. illustrative" table is explicit about this distinction.
+up to 40), not a proof -- there is no Bend law about the combined stride-sequence
+behavior, only about `flatten`/`unflatten` in isolation. The README's "what's
+proven vs. illustrative" table reflects this.
