@@ -1,0 +1,25 @@
+# mvdef-move-proofs
+# `bend` must be on PATH; `cargo` must be able to reach crates.io.
+
+default: check
+
+# The headline proof: move_preserves_resolvability, for every src, dst,
+# move_names satisfying the stated precondition. Must print "All terms check."
+prove:
+    cd bend/move_preserves_resolvability && bend PROOF.bend
+
+# The corrected model's own demo instance.
+run:
+    cd bend/move_preserves_resolvability && bend main.bend
+
+# The buggy first attempt's counterexample claim, rejected on purpose.
+# Expected to exit non-zero -- that IS the demonstration. Not part of `check`.
+bug:
+    cd bend/move_preserves_resolvability && bend buggy_first_attempt_disproved.bend; test $? -ne 0
+
+test:
+    cd rust && cargo test
+
+# Everything that's supposed to pass: the Rust tests and the Bend proof.
+check: run test prove
+    @echo "mvdef-move-proofs: model runs, Rust tests pass, proof checks (see 'just bug' for the deliberate rejection)."

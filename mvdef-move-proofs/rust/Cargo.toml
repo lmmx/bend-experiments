@@ -1,0 +1,10 @@
+[package]
+name = "mvdef-move-proofs"
+version = "0.1.0"
+edition = "2021"
+description = "Abstract model of mvdef's move-defs-and-imports transformation, mirroring the Bend proof."
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"
