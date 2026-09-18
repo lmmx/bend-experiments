@@ -138,7 +138,7 @@ const NO_GENERATIVE_CUES: &[&str] = &["just", "chore", "mandatory", "no point", 
 /// which is enough to pull apart the guide's own Step 1 worked example ("I need to apply
 /// for jobs, fix my bathroom, and work on a coding project").
 fn split_phrases(raw: &str) -> Vec<String> {
-    raw.split(|c: char| c == ',' || c == ';' || c == '\n')
+    raw.split([',', ';', '\n'])
         .flat_map(|chunk| chunk.split(" and "))
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())

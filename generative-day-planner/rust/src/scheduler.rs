@@ -254,7 +254,6 @@ pub fn transition_note(from: Prev, to: Cur) -> &'static str {
         (Prev::Task(Physical), Cur::Task(Physical)) => "Physical batch (fallback: counts didn't allow full alternation here -- see SequenceMode::Fallback).",
         (Prev::Task(Cognitive | Creative), Cur::Task(Cognitive | Creative)) => "Mind-mode batch (fallback: counts didn't allow full alternation here -- see SequenceMode::Fallback).",
 
-        (Prev::Task(Administrative), Cur::Task(_)) => "Administrative batch done.", // unreachable given build_full_sequence's placement, kept exhaustive
         (Prev::Task(_), Cur::Task(Administrative)) => "Administrative task (outside the alternation guarantee -- Step 4: \"lower-variance; it goes fine at any energy level\").",
         (Prev::Task(_), Cur::Gap) => "Focused block done; thirty-plus unassigned minutes follow -- an expansion joint, not a break from productivity (Step 4).",
     }

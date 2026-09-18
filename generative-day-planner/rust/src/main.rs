@@ -13,7 +13,7 @@ mod scheduler;
 
 use alt_sequence::SequenceMode;
 use nlu::{extract_tasks, Category};
-use scheduler::{build_full_sequence, solve_schedule, transition_note, DAY_LEN_MIN};
+use scheduler::{build_full_sequence, solve_schedule, transition_note, Cur, Prev, DAY_LEN_MIN};
 
 /// The schedule window starts at this hour of the day (24h clock), purely for display.
 const DAY_START_HOUR: i32 = 8;
@@ -80,7 +80,7 @@ fn run_pipeline(label: &str, raw: &str) {
                 DAY_START_HOUR + DAY_LEN_MIN / 60,
                 DAY_LEN_MIN
             );
-            let mut prev_cat = None;
+            let mut prev = Prev::Start;
             for r in &resolved {
                 let cat_label = r.category.map(Category::label).unwrap_or("Gap");
                 println!(
@@ -90,8 +90,15 @@ fn run_pipeline(label: &str, raw: &str) {
                     r.label,
                     cat_label
                 );
-                println!("      {}", transition_note(prev_cat, r.category));
-                prev_cat = r.category;
+                let cur = match r.category {
+                    Some(c) => Cur::Task(c),
+                    None => Cur::Gap,
+                };
+                println!("      {}", transition_note(prev, cur));
+                prev = match r.category {
+                    Some(c) => Prev::Task(c),
+                    None => Prev::Gap,
+                };
             }
         }
         None => println!(

@@ -149,8 +149,8 @@ pub fn sequence_body_mind(mut body: Vec<Task>, mut mind: Vec<Task>) -> (Vec<Task
         }
         // Whatever's left in the larger bucket (exactly `excess_count - 1`, since the
         // prefix already took one extra) is the undisguised batch.
-        out.extend(body.drain(..));
-        out.extend(mind.drain(..));
+        out.append(&mut body);
+        out.append(&mut mind);
         debug_assert_eq!(excess_count, out.len() - prefix_len + 1);
 
         (out, SequenceMode::Fallback {
