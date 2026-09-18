@@ -3,6 +3,32 @@
 This repo is itself an application of the pattern it documents. If you are a coding agent working
 here — including a future instance of the session that wrote this — follow this.
 
+## What a proof here has to be for (not a trivial one)
+
+A Bend proof that a checker function agrees with its own definition, or that a library function has
+a property already guaranteed by its type, doesn't demonstrate anything — Bend did no work a type
+system or a docstring wouldn't already do. The bar (set by `stencil-boundary-proofs/`, read that
+project's `docs/reward-hacking.md` and `docs/bend-proof.md` before adding another proof here): a
+proof earns its place when it establishes something a **plausible, naturally-written first
+implementation could get wrong** — an off-by-one at a boundary, a generator that's unfaithful to
+its spec on some input, a packing scheme that doesn't actually round-trip in a case nobody happened
+to test. Where it's honest to do so, actually write the natural-but-wrong version first, watch
+`bend` reject the claim that it's correct (it will name the exact mismatch — see
+`stencil-boundary-proofs/docs/bend-proof.md` for what that output looks like), fix it, then prove
+the general claim. Where that's not practical, at minimum state, in the project's docs, what a
+plausible bug in that spot would have looked like and why the proof rules it out — don't just
+assert correctness and move on.
+
+The mechanism this is actually demonstrating, spelled out once here rather than in every project:
+an agent that writes both an implementation and the tests grading it can narrow a test's domain
+quietly — a generator range that never reaches the failing input still produces a green, honest-
+looking test run (`stencil-boundary-proofs/rust/tests/spec_vs_tests.rs` shows this for real: a
+normal `proptest!` block with one narrowed range passes against genuinely broken code). A Bend
+law's quantifiers (`for +i: Nat`, not `for i: Nat, i < 500`) can't be narrowed the same way without
+it being a visible edit to a file the AI doesn't own (`LAWS.bend`, human-authored by convention —
+see below). That separation, not any cleverness in the proof itself, is what's actually being
+demonstrated.
+
 ## The rule
 
 Any project subdirectory that makes a **numeric or structural correctness claim** ("this packing
