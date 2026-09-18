@@ -48,5 +48,16 @@ def seq(n: Nat, +i: Nat) -> Nat:
     case 1n++m:
       combine(seq(m, i), Nat.add(m, i))
 
+# Depth 10 here, not pure_par_sum's 16: `combine` recurses one Peano
+# step at a time (non-tail, `1n+combine(...)`), so it is far slower
+# than the built-in Nat.add pure_par_sum uses -- depth 16n (2^16
+# values) stack-overflows the plain interpreter in this sandbox
+# (verified: `bend` on a copy of this file with `tree!(16n, 0n)`
+# printed "memory fault (machine stack overflow?)"); depth 10n (2^10 =
+# 1024 values, max 1023) is verified to print 1023 in this sandbox.
+# This is a performance artifact of the illustrative `combine`, not a
+# correctness issue -- PROOF.bend's check below never evaluates a
+# concrete depth, only the symbolic law, and passes independently of
+# this.
 def main() -> IO(Unit):
-  IO.print(Nat.show(tree!(16n, 0n)))
+  IO.print(Nat.show(tree!(10n, 0n)))

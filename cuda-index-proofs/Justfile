@@ -1,0 +1,31 @@
+# cuda-index-proofs: check every Bend proof, run the Rust cross-checks.
+# `bend` must be on PATH; `cargo` must be on PATH.
+
+default: check
+
+# Check every PROOF.bend under bend/ -- each must print "All terms check."
+# (LAWS.bend files are not checked standalone: a law with no matching def
+# is an open claim, so `bend` reports "1 TODO found" for those by design --
+# same convention as ../bend-primer/Justfile and every demo in bendlang/bend.)
+prove:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    status=0
+    for f in bend/*/PROOF.bend; do
+        echo "== $f =="
+        if ! bend "$f"; then
+            status=1
+        fi
+    done
+    exit $status
+
+# Run the Rust crate's tests (includes the proptest property checks).
+test:
+    cd rust && cargo test
+
+# Both: the full gate.
+check: prove test
+
+# Print Bend's own guide, for reference.
+guide:
+    bend guide
