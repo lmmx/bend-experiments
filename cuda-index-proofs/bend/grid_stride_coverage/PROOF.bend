@@ -22,11 +22,11 @@ def succ_inj(a: Nat, b: Nat, e: {1n+a == 1n+b : Nat}) -> {a == b : Nat}:
   Equal.cong(Nat, Nat, pred, 1n+a, 1n+b, e)
 
 # left cancellation for Nat.add: n+x == n+y implies x == y
-def add_cancel_l(n: Nat, x: Nat, y: Nat, e: {Nat.add(n, x) == Nat.add(n, y) : Nat}) -> {x == y : Nat}:
+def add_cancel_l(n: Nat, +x: Nat, +y: Nat, e: {Nat.add(n, x) == Nat.add(n, y) : Nat}) -> {x == y : Nat}:
   match n:
     case 0n:
       e
-    case 1n+p:
+    case 1n++p:
       add_cancel_l(p, x, y, succ_inj(Nat.add(p, x), Nat.add(p, y), e))
 
 def add_assoc(a: Nat, -b: Nat, -c: Nat) -> {Nat.add(a, Nat.add(b, c)) == Nat.add(Nat.add(a, b), c) : Nat}:
@@ -63,7 +63,7 @@ def reshape_bound(bd: Nat, x: Nat, w: Nat, h: Grid.LT(Nat.add(Nat.add(bd, x), w)
   %Equal.sym(Nat, Nat.add(bd, Nat.add(x, w)), Nat.add(Nat.add(bd, x), w), add_assoc(bd, x, w)) : Grid.LT(_, bd)
   h
 
-def block_bound_absurd(bd: Nat, x: Nat, w: Nat, h: Grid.LT(Nat.add(Nat.add(bd, x), w), bd)) -> Empty:
+def block_bound_absurd(+bd: Nat, +x: Nat, +w: Nat, h: Grid.LT(Nat.add(Nat.add(bd, x), w), bd)) -> Empty:
   add_not_lt(bd, Nat.add(x, w), reshape_bound(bd, x, w, h))
 
 # Nat.add(bd, x)+t == bd+(x+t): the shape flatten(1n+q, t, bd) already
@@ -71,10 +71,18 @@ def block_bound_absurd(bd: Nat, x: Nat, w: Nat, h: Grid.LT(Nat.add(Nat.add(bd, x
 def reflatten(bd: Nat, x: Nat, t: Nat) -> {Nat.add(Nat.add(bd, x), t) == Nat.add(bd, Nat.add(x, t)) : Nat}:
   Equal.sym(Nat, Nat.add(bd, Nat.add(x, t)), Nat.add(Nat.add(bd, x), t), add_assoc(bd, x, t))
 
-def realign(bd: Nat, x1: Nat, t1: Nat, x2: Nat, t2: Nat, e: {Nat.add(Nat.add(bd, x1), t1) == Nat.add(Nat.add(bd, x2), t2) : Nat}) -> {Nat.add(bd, Nat.add(x1, t1)) == Nat.add(bd, Nat.add(x2, t2)) : Nat}:
-  %reflatten(bd, x1, t1) : {_ == Nat.add(Nat.add(bd, x2), t2) : Nat}
-  %reflatten(bd, x2, t2) : {Nat.add(bd, Nat.add(x1, t1)) == _ : Nat}
+def realign(+bd: Nat, +x1: Nat, +t1: Nat, +x2: Nat, +t2: Nat, e: {Nat.add(Nat.add(bd, x1), t1) == Nat.add(Nat.add(bd, x2), t2) : Nat}) -> {Nat.add(bd, Nat.add(x1, t1)) == Nat.add(bd, Nat.add(x2, t2)) : Nat}:
+  %reflatten(bd, x1, t1) : {_ == Nat.add(bd, Nat.add(x2, t2)) : Nat}
+  %reflatten(bd, x2, t2) : {Nat.add(Nat.add(bd, x1), t1) == _ : Nat}
   e
+
+# a computed pair can't be destructured in place (the checker wants a
+# plain parameter to match on), so this takes the recursive call's
+# result as its own parameter and lifts the block half from q1==q2 to
+# 1n+q1==1n+q2
+def lift_block(q1: Nat, q2: Nat, t1: Nat, t2: Nat, r: ({q1 == q2 : Nat} & {t1 == t2 : Nat})) -> ({1n+q1 == 1n+q2 : Nat} & {t1 == t2 : Nat}):
+  (pb, pt) = r
+  (Equal.cong(Nat, Nat, x => 1n+x, q1, q2, pb), pt)
 
 def Laws.flatten_injective(b1, t1, b2, t2, bd, lt1, lt2, e):
   match b1 b2:
@@ -90,7 +98,7 @@ def Laws.flatten_injective(b1, t1, b2, t2, bd, lt1, lt2, e):
           transport_lt(t2, bd, Nat.add(Nat.add(bd, Nat.mul(q1, bd)), t1),
             Equal.sym(Nat, Nat.add(Nat.add(bd, Nat.mul(q1, bd)), t1), t2, e), lt2)))
     case 1n+q1 1n+q2:
-      (pb, pt) = Laws.flatten_injective(q1, t1, q2, t2, bd, lt1, lt2,
-        add_cancel_l(bd, Grid.flatten(q1, t1, bd), Grid.flatten(q2, t2, bd),
-          realign(bd, Nat.mul(q1, bd), t1, Nat.mul(q2, bd), t2, e)))
-      (Equal.cong(Nat, Nat, x => 1n+x, q1, q2, pb), pt)
+      lift_block(q1, q2, t1, t2,
+        Laws.flatten_injective(q1, t1, q2, t2, bd, lt1, lt2,
+          add_cancel_l(bd, Grid.flatten(q1, t1, bd), Grid.flatten(q2, t2, bd),
+            realign(bd, Nat.mul(q1, bd), t1, Nat.mul(q2, bd), t2, e))))
